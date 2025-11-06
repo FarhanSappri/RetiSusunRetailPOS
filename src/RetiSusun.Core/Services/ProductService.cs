@@ -73,8 +73,8 @@ public class ProductService : IProductService
         return await _context.Products
             .Where(p => p.BusinessId == businessId && p.IsActive &&
                        (p.Name.ToLower().Contains(searchTerm) ||
-                        p.Barcode!.Contains(searchTerm) ||
-                        p.SKU!.Contains(searchTerm)))
+                        (p.Barcode != null && p.Barcode.Contains(searchTerm)) ||
+                        (p.SKU != null && p.SKU.Contains(searchTerm))))
             .ToListAsync();
     }
 }
