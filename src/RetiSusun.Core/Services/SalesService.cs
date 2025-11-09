@@ -159,7 +159,7 @@ public class SalesService : ISalesService
         receipt.AppendLine("========================================");
         receipt.AppendLine($"Subtotal:        {transaction.SubTotal:C}");
         if (transaction.TaxAmount > 0)
-            receipt.AppendLine($"Tax:             {transaction.TaxAmount:C}");
+            receipt.AppendLine($"Tax ({transaction.TaxRate}%):    {transaction.TaxAmount:C}");
         if (transaction.DiscountAmount > 0)
             receipt.AppendLine($"Discount:       -{transaction.DiscountAmount:C}");
         receipt.AppendLine($"TOTAL:           {transaction.TotalAmount:C}");

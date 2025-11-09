@@ -312,10 +312,11 @@ class Program
             };
 
             transaction.SubTotal = transaction.Items.Sum(i => i.TotalPrice);
-            transaction.TaxAmount = 0;
+            transaction.TaxRate = 6.00m; // 6% tax
+            transaction.TaxAmount = transaction.SubTotal * (transaction.TaxRate / 100);
             transaction.DiscountAmount = 0;
-            transaction.TotalAmount = transaction.SubTotal;
-            transaction.AmountPaid = 20.00m;
+            transaction.TotalAmount = transaction.SubTotal + transaction.TaxAmount - transaction.DiscountAmount;
+            transaction.AmountPaid = 50.00m;
             transaction.ChangeAmount = transaction.AmountPaid - transaction.TotalAmount;
 
             var savedTransaction = await salesService.CreateSalesTransactionAsync(transaction);
@@ -327,7 +328,7 @@ class Program
             Console.WriteLine("\n   RECEIPT PREVIEW:");
             Console.WriteLine("   ─────────────────────────────────────────");
             var receipt = await salesService.GenerateReceiptAsync(savedTransaction.TransactionId);
-            foreach (var line in receipt.Split('\n').Take(15))
+            foreach (var line in receipt.Split('\n'))
             {
                 Console.WriteLine($"   {line}");
             }
