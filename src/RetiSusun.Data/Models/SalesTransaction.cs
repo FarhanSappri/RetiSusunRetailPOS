@@ -21,6 +21,9 @@ public class SalesTransaction
     [Column(TypeName = "decimal(18,2)")]
     public decimal TaxAmount { get; set; }
 
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal TaxRate { get; set; } = 0.00m; // Tax rate as percentage (e.g., 6.00 for 6%)
+
     [Column(TypeName = "decimal(18,2)")]
     public decimal DiscountAmount { get; set; }
 
