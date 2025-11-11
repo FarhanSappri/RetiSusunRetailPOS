@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using RetiSusun.Core.Interfaces;
 using RetiSusun.Data.Models;
+using RetiSusun.Desktop.Helpers;
 
 namespace RetiSusun.Desktop.Forms;
 
@@ -39,6 +40,13 @@ public partial class SupplierDashboardForm : Form
     {
         _currentUser = user;
         InitializeComponent();
+        
+        // Apply dark mode if enabled
+        if (_currentUser.DarkModeEnabled)
+        {
+            DarkModeHelper.ApplyDarkMode(this, true);
+        }
+        
         LoadDashboard();
     }
 
@@ -47,23 +55,39 @@ public partial class SupplierDashboardForm : Form
         this.Text = "RetiSusun - Supplier Dashboard";
         this.Size = new Size(1000, 700);
         this.StartPosition = FormStartPosition.CenterScreen;
+        this.WindowState = FormWindowState.Maximized;
+        this.MinimumSize = new Size(900, 600);
 
         // Welcome Label
         lblWelcome = new Label
         {
             Location = new Point(20, 20),
-            Size = new Size(960, 30),
+            Size = new Size(650, 30),
             Font = new Font("Segoe UI", 14, FontStyle.Bold),
-            Text = $"Welcome, {_currentUser.FullName}"
+            Text = $"Welcome, {_currentUser.FullName}",
+            Anchor = AnchorStyles.Top | AnchorStyles.Left
         };
+
+        // Logout Button
+        var btnLogout = new Button
+        {
+            Text = "🚪 Logout",
+            Location = new Point(this.ClientSize.Width - 230, 20),
+            Size = new Size(100, 30),
+            Font = new Font("Segoe UI", 9),
+            BackColor = Color.LightCoral,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
+        };
+        btnLogout.Click += BtnLogout_Click;
 
         // Settings Button
         var btnSettings = new Button
         {
             Text = "⚙ Settings",
-            Location = new Point(880, 20),
+            Location = new Point(this.ClientSize.Width - 120, 20),
             Size = new Size(100, 30),
-            Font = new Font("Segoe UI", 9)
+            Font = new Font("Segoe UI", 9),
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
         };
         btnSettings.Click += BtnSettings_Click;
 
@@ -71,7 +95,8 @@ public partial class SupplierDashboardForm : Form
         tabControl = new TabControl
         {
             Location = new Point(20, 60),
-            Size = new Size(960, 600)
+            Size = new Size(this.ClientSize.Width - 40, this.ClientSize.Height - 80),
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
         };
 
         // Products Tab
@@ -90,6 +115,7 @@ public partial class SupplierDashboardForm : Form
         tabControl.TabPages.Add(tabReports);
 
         this.Controls.Add(lblWelcome);
+        this.Controls.Add(btnLogout);
         this.Controls.Add(btnSettings);
         this.Controls.Add(tabControl);
     }
@@ -733,6 +759,22 @@ public partial class SupplierDashboardForm : Form
                 MessageBox.Show("Dark mode will be applied when you restart the application.", 
                     "Settings Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
+        }
+    }
+    
+    private void BtnLogout_Click(object? sender, EventArgs e)
+    {
+        var result = MessageBox.Show(
+            "Are you sure you want to logout?",
+            "Confirm Logout",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        
+        if (result == DialogResult.Yes)
+        {
+            this.Close();
+            var loginForm = new LoginForm();
+            loginForm.Show();
         }
     }
 }
