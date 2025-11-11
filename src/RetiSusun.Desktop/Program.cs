@@ -44,5 +44,8 @@ static class Program
         services.AddScoped<ISalesService, SalesService>();
         services.AddScoped<IRestockingService, RestockingService>();
         services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+        services.AddScoped<ISupplierService, SupplierService>();
+        services.AddScoped<ISupplierProductService, SupplierProductService>();
+        services.AddScoped<ISupplierOrderService, SupplierOrderService>();
     }
 }
