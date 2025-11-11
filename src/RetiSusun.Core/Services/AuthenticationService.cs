@@ -20,6 +20,7 @@ public class AuthenticationService : IAuthenticationService
     {
         var user = await _context.Users
             .Include(u => u.Business)
+            .Include(u => u.Supplier)
             .FirstOrDefaultAsync(u => u.Username == username && u.IsActive);
 
         if (user == null)
@@ -47,7 +48,33 @@ public class AuthenticationService : IAuthenticationService
             FullName = fullName,
             Email = email,
             Role = role,
+            AccountType = "Business",
             BusinessId = businessId,
+            IsActive = true,
+            CreatedDate = DateTime.UtcNow
+        };
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        return user;
+    }
+
+    public async Task<User> RegisterSupplierUserAsync(string username, string password, string fullName, string email, string role, int supplierId)
+    {
+        // Check if username already exists
+        if (await _context.Users.AnyAsync(u => u.Username == username))
+            throw new InvalidOperationException("Username already exists");
+
+        var user = new User
+        {
+            Username = username,
+            PasswordHash = HashPassword(password),
+            FullName = fullName,
+            Email = email,
+            Role = role,
+            AccountType = "Supplier",
+            SupplierId = supplierId,
             IsActive = true,
             CreatedDate = DateTime.UtcNow
         };
