@@ -66,6 +66,17 @@ public partial class MainForm : Form
         };
         this.Controls.Add(lblWelcome);
 
+        // Settings Button
+        var btnSettings = new Button
+        {
+            Text = "⚙ Settings",
+            Location = new Point(this.ClientSize.Width - 110, 10),
+            Size = new Size(100, 30),
+            Font = new Font("Segoe UI", 9)
+        };
+        btnSettings.Click += BtnSettings_Click;
+        this.Controls.Add(btnSettings);
+
         // Tab Control
         tabControl = new TabControl
         {
@@ -1834,7 +1845,17 @@ public partial class MainForm : Form
             }
         };
         
-        panel.Controls.AddRange(new Control[] { btnGenerateSuggestions, btnApplySuggestion });
+        var btnRecommendSuppliers = new Button
+        {
+            Text = "Recommended Suppliers",
+            Location = new Point(360, 470),
+            Size = new Size(180, 35),
+            Font = new Font("Segoe UI", 10),
+            BackColor = Color.LightYellow
+        };
+        btnRecommendSuppliers.Click += (s, e) => ShowRecommendedSuppliersDialog();
+        
+        panel.Controls.AddRange(new Control[] { btnGenerateSuggestions, btnApplySuggestion, btnRecommendSuppliers });
         
         // Note: Removed automatic loading of suggestions on tab load
         // Users can click "Generate Suggestions" button to see suggestions
@@ -2325,17 +2346,39 @@ public partial class MainForm : Form
             GridLines = true,
             MultiSelect = false
         };
-        suppliersListView.Columns.Add("Supplier", 250);
-        suppliersListView.Columns.Add("Contact", 200);
+        suppliersListView.Columns.Add("Supplier", 230);
+        suppliersListView.Columns.Add("Logo", 50);
+        suppliersListView.Columns.Add("Contact", 180);
         suppliersListView.Columns.Add("Phone", 120);
-        suppliersListView.Columns.Add("Email", 200);
+        suppliersListView.Columns.Add("Email", 180);
         form.Controls.Add(suppliersListView);
+
+        // Supplier logo preview
+        var picBoxSupplierLogo = new PictureBox
+        {
+            Location = new Point(20, 270),
+            Size = new Size(150, 150),
+            SizeMode = PictureBoxSizeMode.Zoom,
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = Color.White
+        };
+        form.Controls.Add(picBoxSupplierLogo);
+        
+        var lblLogoCaption = new Label
+        {
+            Text = "Supplier Logo",
+            Location = new Point(20, 425),
+            Size = new Size(150, 20),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font("Segoe UI", 9, FontStyle.Italic)
+        };
+        form.Controls.Add(lblLogoCaption);
 
         // Products ListView
         var productsListView = new ListView
         {
-            Location = new Point(20, 280),
-            Size = new Size(850, 200),
+            Location = new Point(180, 270),
+            Size = new Size(690, 180),
             View = View.Details,
             FullRowSelect = true,
             GridLines = true,
@@ -2353,7 +2396,7 @@ public partial class MainForm : Form
         var btnPlaceOrder = new Button
         {
             Text = "Place Order",
-            Location = new Point(670, 490),
+            Location = new Point(670, 460),
             Size = new Size(200, 40),
             Font = new Font("Segoe UI", 10, FontStyle.Bold),
             BackColor = Color.LightGreen,
@@ -2371,6 +2414,7 @@ public partial class MainForm : Form
             foreach (var supplier in suppliers)
             {
                 var item = new ListViewItem(supplier.CompanyName);
+                item.SubItems.Add(!string.IsNullOrEmpty(supplier.LogoPath) ? "✓" : "");
                 item.SubItems.Add(supplier.ContactPersonName ?? "");
                 item.SubItems.Add(supplier.ContactPersonPhone ?? "");
                 item.SubItems.Add(supplier.ContactPersonEmail ?? "");
@@ -2397,6 +2441,23 @@ public partial class MainForm : Form
 
             var supplier = suppliersListView.SelectedItems[0].Tag as Supplier;
             if (supplier == null) return;
+
+            // Load supplier logo
+            if (!string.IsNullOrEmpty(supplier.LogoPath) && System.IO.File.Exists(supplier.LogoPath))
+            {
+                try
+                {
+                    picBoxSupplierLogo.Image = Image.FromFile(supplier.LogoPath);
+                }
+                catch
+                {
+                    picBoxSupplierLogo.Image = null;
+                }
+            }
+            else
+            {
+                picBoxSupplierLogo.Image = null;
+            }
 
             productsListView.Items.Clear();
             btnPlaceOrder.Enabled = false;
@@ -3519,6 +3580,221 @@ public partial class MainForm : Form
         catch (Exception ex)
         {
             MessageBox.Show($"Error generating report: {ex.Message}", "Error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+    
+    private void BtnSettings_Click(object? sender, EventArgs e)
+    {
+        var settingsForm = new UserSettingsForm(_currentUser);
+        if (settingsForm.ShowDialog() == DialogResult.OK)
+        {
+            // Update welcome label if name changed
+            lblWelcome.Text = $"Welcome, {_currentUser.FullName} ({_currentUser.Role})";
+            
+            // Note: Dark mode will take effect on next restart
+            if (_currentUser.DarkModeEnabled)
+            {
+                MessageBox.Show("Dark mode will be applied when you restart the application.", 
+                    "Settings Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+    }
+    
+    private async void ShowRecommendedSuppliersDialog()
+    {
+        if (!_currentUser.BusinessId.HasValue)
+        {
+            MessageBox.Show("User is not associated with a business!", "Error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+        
+        var loadingForm = new Form
+        {
+            Text = "Loading...",
+            Size = new Size(300, 100),
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.None,
+            ControlBox = false
+        };
+        var lblLoading = new Label
+        {
+            Text = "Analyzing suppliers and products...",
+            Location = new Point(20, 30),
+            Size = new Size(260, 40),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        loadingForm.Controls.Add(lblLoading);
+        loadingForm.Show();
+        Application.DoEvents();
+        
+        try
+        {
+            using var scope = Program.ServiceProvider!.CreateScope();
+            var restockingService = scope.ServiceProvider.GetRequiredService<IRestockingService>();
+            
+            var recommendations = await restockingService.GetSupplierRecommendationsAsync(_currentUser.BusinessId.Value);
+            
+            loadingForm.Close();
+            
+            if (!recommendations.Any())
+            {
+                MessageBox.Show("No supplier recommendations available.\n\nThis could mean:\n- No products need restocking\n- No suppliers have matching products\n- No suppliers are currently active",
+                    "No Recommendations", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            var form = new Form
+            {
+                Text = "Recommended Suppliers for Restocking",
+                Size = new Size(900, 600),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.Sizable
+            };
+            
+            var lblTitle = new Label
+            {
+                Text = "Top Suppliers Based on Your Restocking Needs",
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                Location = new Point(20, 20),
+                Size = new Size(850, 30)
+            };
+            form.Controls.Add(lblTitle);
+            
+            var lblInfo = new Label
+            {
+                Text = "Suppliers are ranked by product coverage and estimated cost",
+                Font = new Font("Segoe UI", 9, FontStyle.Italic),
+                ForeColor = Color.Gray,
+                Location = new Point(20, 55),
+                Size = new Size(850, 20)
+            };
+            form.Controls.Add(lblInfo);
+            
+            // Suppliers ListView
+            var suppliersListView = new ListView
+            {
+                Location = new Point(20, 85),
+                Size = new Size(850, 200),
+                View = View.Details,
+                FullRowSelect = true,
+                GridLines = true,
+                MultiSelect = false
+            };
+            suppliersListView.Columns.Add("Rank", 50);
+            suppliersListView.Columns.Add("Supplier", 250);
+            suppliersListView.Columns.Add("Logo", 50);
+            suppliersListView.Columns.Add("Coverage", 100);
+            suppliersListView.Columns.Add("Products", 100);
+            suppliersListView.Columns.Add("Est. Cost", 150);
+            suppliersListView.Columns.Add("Score", 100);
+            form.Controls.Add(suppliersListView);
+            
+            // Supplier logo preview
+            var picBoxLogo = new PictureBox
+            {
+                Location = new Point(20, 295),
+                Size = new Size(150, 150),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.White
+            };
+            form.Controls.Add(picBoxLogo);
+            
+            // Product details ListView
+            var productsListView = new ListView
+            {
+                Location = new Point(180, 295),
+                Size = new Size(690, 200),
+                View = View.Details,
+                FullRowSelect = true,
+                GridLines = true
+            };
+            productsListView.Columns.Add("Product", 250);
+            productsListView.Columns.Add("Quantity", 100);
+            productsListView.Columns.Add("Unit Price", 120);
+            productsListView.Columns.Add("Total", 120);
+            form.Controls.Add(productsListView);
+            
+            var btnClose = new Button
+            {
+                Text = "Close",
+                Location = new Point(770, 510),
+                Size = new Size(100, 35)
+            };
+            btnClose.Click += (s, e) => form.Close();
+            form.Controls.Add(btnClose);
+            
+            // Load recommendations
+            int rank = 1;
+            foreach (var rec in recommendations)
+            {
+                var item = new ListViewItem(rank.ToString());
+                item.SubItems.Add(rec.SupplierName);
+                item.SubItems.Add(!string.IsNullOrEmpty(rec.LogoPath) ? "✓" : "");
+                item.SubItems.Add($"{rec.CoveragePercentage:F1}%");
+                item.SubItems.Add($"{rec.ProductsNeeded}/{rec.TotalProductsNeeded}");
+                item.SubItems.Add($"RM {rec.EstimatedCost:F2}");
+                
+                // Calculate a simple score for display
+                var score = rec.CoveragePercentage;
+                item.SubItems.Add($"{score:F0}");
+                
+                // Color code by coverage
+                if (rec.CoveragePercentage >= 80)
+                    item.BackColor = Color.LightGreen;
+                else if (rec.CoveragePercentage >= 50)
+                    item.BackColor = Color.LightYellow;
+                
+                item.Tag = rec;
+                suppliersListView.Items.Add(item);
+                rank++;
+            }
+            
+            // Event: Show supplier details when selected
+            suppliersListView.SelectedIndexChanged += (s, e) =>
+            {
+                if (suppliersListView.SelectedItems.Count == 0) return;
+                
+                var rec = suppliersListView.SelectedItems[0].Tag as SupplierRecommendation;
+                if (rec == null) return;
+                
+                // Load logo
+                if (!string.IsNullOrEmpty(rec.LogoPath) && System.IO.File.Exists(rec.LogoPath))
+                {
+                    try
+                    {
+                        picBoxLogo.Image = Image.FromFile(rec.LogoPath);
+                    }
+                    catch
+                    {
+                        picBoxLogo.Image = null;
+                    }
+                }
+                else
+                {
+                    picBoxLogo.Image = null;
+                }
+                
+                // Load matching products
+                productsListView.Items.Clear();
+                foreach (var product in rec.MatchingProducts)
+                {
+                    var pItem = new ListViewItem(product.ProductName);
+                    pItem.SubItems.Add(product.SuggestedQuantity.ToString());
+                    pItem.SubItems.Add($"RM {product.UnitPrice:F2}");
+                    pItem.SubItems.Add($"RM {(product.UnitPrice * product.SuggestedQuantity):F2}");
+                    productsListView.Items.Add(pItem);
+                }
+            };
+            
+            form.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            loadingForm.Close();
+            MessageBox.Show($"Error loading supplier recommendations: {ex.Message}", "Error",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }

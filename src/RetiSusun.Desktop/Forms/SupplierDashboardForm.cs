@@ -57,6 +57,16 @@ public partial class SupplierDashboardForm : Form
             Text = $"Welcome, {_currentUser.FullName}"
         };
 
+        // Settings Button
+        var btnSettings = new Button
+        {
+            Text = "⚙ Settings",
+            Location = new Point(880, 20),
+            Size = new Size(100, 30),
+            Font = new Font("Segoe UI", 9)
+        };
+        btnSettings.Click += BtnSettings_Click;
+
         // Tab Control
         tabControl = new TabControl
         {
@@ -80,6 +90,7 @@ public partial class SupplierDashboardForm : Form
         tabControl.TabPages.Add(tabReports);
 
         this.Controls.Add(lblWelcome);
+        this.Controls.Add(btnSettings);
         this.Controls.Add(tabControl);
     }
 
@@ -706,5 +717,22 @@ public partial class SupplierDashboardForm : Form
     private void BtnGenerateReport_Click(object? sender, EventArgs e)
     {
         MessageBox.Show("Detailed report generation - to be implemented", "Coming Soon", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+    
+    private void BtnSettings_Click(object? sender, EventArgs e)
+    {
+        var settingsForm = new UserSettingsForm(_currentUser);
+        if (settingsForm.ShowDialog() == DialogResult.OK)
+        {
+            // Update welcome label if name changed
+            lblWelcome.Text = $"Welcome, {_currentUser.FullName}";
+            
+            // Note: Dark mode will take effect on next restart
+            if (_currentUser.DarkModeEnabled)
+            {
+                MessageBox.Show("Dark mode will be applied when you restart the application.", 
+                    "Settings Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
     }
 }
