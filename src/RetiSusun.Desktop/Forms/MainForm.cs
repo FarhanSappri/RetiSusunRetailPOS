@@ -851,7 +851,7 @@ public partial class MainForm : Form
         var form = new Form
         {
             Text = isEdit ? "Edit Product" : "Add New Product",
-            Size = new Size(500, 600),
+            Size = new Size(500, 680),
             StartPosition = FormStartPosition.CenterParent,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false,
@@ -896,6 +896,26 @@ public partial class MainForm : Form
         form.Controls.Add(new Label { Text = "SKU:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
         var txtSKU = new TextBox { Location = new Point(150, y), Size = new Size(fieldWidth, 25), Text = product?.SKU ?? "" };
         form.Controls.Add(txtSKU);
+        y += 35;
+        
+        // Product Image
+        form.Controls.Add(new Label { Text = "Product Image:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var txtImagePath = new TextBox { Location = new Point(150, y), Size = new Size(220, 25), Text = product?.ImagePath ?? "", ReadOnly = true };
+        form.Controls.Add(txtImagePath);
+        var btnBrowseImage = new Button { Text = "Browse...", Location = new Point(375, y), Size = new Size(75, 25) };
+        btnBrowseImage.Click += (s, e) =>
+        {
+            using var openFileDialog = new OpenFileDialog
+            {
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.gif;*.bmp|All Files|*.*",
+                Title = "Select Product Image"
+            };
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                txtImagePath.Text = openFileDialog.FileName;
+            }
+        };
+        form.Controls.Add(btnBrowseImage);
         y += 35;
         
         // Cost Price
@@ -950,6 +970,7 @@ public partial class MainForm : Form
                     Category = txtCategory.Text,
                     Barcode = txtBarcode.Text,
                     SKU = txtSKU.Text,
+                    ImagePath = txtImagePath.Text,
                     CostPrice = nudCostPrice.Value,
                     SellingPrice = nudSellingPrice.Value,
                     StockQuantity = (int)nudStock.Value,
@@ -1815,8 +1836,8 @@ public partial class MainForm : Form
         
         panel.Controls.AddRange(new Control[] { btnGenerateSuggestions, btnApplySuggestion });
         
-        // Load initial suggestions
-        LoadRestockingSuggestions(suggestionsListView);
+        // Note: Removed automatic loading of suggestions on tab load
+        // Users can click "Generate Suggestions" button to see suggestions
         
         return panel;
     }
@@ -1842,8 +1863,8 @@ public partial class MainForm : Form
             
             if (!suggestions.Any())
             {
-                MessageBox.Show("No restocking suggestions at this time. All products are adequately stocked!",
-                    "No Suggestions", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // Don't show popup - just leave the list empty
+                // User can see "No suggestions" in the empty list
                 return;
             }
             
