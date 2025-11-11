@@ -9,14 +9,26 @@
 
 ### Key Features
 
+#### Business Owner Side:
 - ✅ **User Management** - Multi-user support with role-based access control (Admin, Manager, Cashier)
 - ✅ **Product Management** - Comprehensive inventory tracking with barcode support
 - ✅ **Point of Sale** - Fast and efficient sales transaction processing
 - ✅ **Smart Restocking** - AI-powered restocking suggestions based on sales trends
 - ✅ **Purchase Orders** - Supplier order management and tracking
+- ✅ **Supplier Browsing** - Browse available suppliers and their product catalogs
+- ✅ **Direct Ordering** - Place orders directly from supplier catalogs
 - ✅ **Sales Reports** - Detailed business analytics and reporting
 - ✅ **Receipt Generation** - Professional receipt printing
 - ✅ **Multi-Business Support** - Manage multiple retail locations
+
+#### Supplier Side:
+- ✅ **Supplier Registration** - Easy registration process for wholesale suppliers
+- ✅ **Product Catalog Management** - Manage wholesale product listings
+- ✅ **Order Management** - View and process incoming orders from businesses
+- ✅ **Order Status Tracking** - Update order status (Pending, Confirmed, Preparing, Shipped, Delivered)
+- ✅ **Sales Analytics** - Track total sales, order counts, and business metrics
+- ✅ **Inventory Tracking** - Monitor available stock for wholesale products
+- ✅ **Business Dashboard** - Comprehensive dashboard for managing supplier operations
 
 ## 🏗️ Architecture
 
@@ -108,7 +120,11 @@ RetiSusunRetailPOS/
 │   │   │   ├── Product.cs
 │   │   │   ├── SalesTransaction.cs
 │   │   │   ├── PurchaseOrder.cs
-│   │   │   └── RestockingRecord.cs
+│   │   │   ├── RestockingRecord.cs
+│   │   │   ├── Supplier.cs
+│   │   │   ├── SupplierProduct.cs
+│   │   │   ├── SupplierOrder.cs
+│   │   │   └── SupplierOrderItem.cs
 │   │   └── RetiSusunDbContext.cs
 │   │
 │   ├── RetiSusun.Core/          # Business Logic Layer
@@ -117,19 +133,27 @@ RetiSusunRetailPOS/
 │   │   │   ├── IProductService.cs
 │   │   │   ├── ISalesService.cs
 │   │   │   ├── IRestockingService.cs
-│   │   │   └── IPurchaseOrderService.cs
+│   │   │   ├── IPurchaseOrderService.cs
+│   │   │   ├── ISupplierService.cs
+│   │   │   ├── ISupplierProductService.cs
+│   │   │   └── ISupplierOrderService.cs
 │   │   └── Services/            # Service implementations
 │   │       ├── AuthenticationService.cs
 │   │       ├── ProductService.cs
 │   │       ├── SalesService.cs
 │   │       ├── RestockingService.cs
-│   │       └── PurchaseOrderService.cs
+│   │       ├── PurchaseOrderService.cs
+│   │       ├── SupplierService.cs
+│   │       ├── SupplierProductService.cs
+│   │       └── SupplierOrderService.cs
 │   │
 │   ├── RetiSusun.Desktop/       # WinForms UI (Windows only)
 │   │   ├── Forms/
 │   │   │   ├── LoginForm.cs
 │   │   │   ├── RegistrationForm.cs
-│   │   │   └── MainForm.cs
+│   │   │   ├── MainForm.cs
+│   │   │   ├── SupplierRegistrationForm.cs
+│   │   │   └── SupplierDashboardForm.cs
 │   │   └── Program.cs
 │   │
 │   └── RetiSusun.ConsoleApp/    # Console Demo (Cross-platform)
@@ -144,40 +168,64 @@ RetiSusunRetailPOS/
 
 ### 1. Authentication & User Management
 - User registration with business information
+- Supplier registration with company details
 - Secure password hashing (SHA256)
 - Role-based access control (Admin, Manager, Cashier)
-- Multi-business support
+- Account type separation (Business, Supplier)
+- Multi-business and multi-supplier support
 
-### 2. Product Management
+### 2. Product Management (Business Side)
 - Add, edit, and delete products
 - Barcode scanning support
 - Stock level tracking
 - Low stock alerts
 - Category and SKU management
 
-### 3. Point of Sale
+### 3. Supplier Product Management (Supplier Side)
+- Manage wholesale product catalog
+- Set wholesale pricing and minimum order quantities
+- Track available stock levels
+- Categorize products for easy browsing
+- Active/inactive product status management
+
+### 4. Point of Sale
 - Fast transaction processing
 - Multiple payment methods (Cash, Card, E-Wallet)
 - Real-time stock updates
 - Receipt generation
 
-### 4. Restocking Management
+### 5. Restocking Management
 - Manual restocking
 - Restocking history tracking
 - **AI-Powered Suggestions**: Analyzes sales trends to recommend optimal restock quantities
 - Integration with purchase orders
 
-### 5. Purchase Order Management
+### 6. Purchase Order Management
 - Create and manage supplier orders
 - Track order status (Pending, Ordered, Received, Cancelled)
 - Automatic stock updates on receipt
 - Supplier information management
+- **Browse Suppliers**: View available suppliers and their catalogs
+- **Direct Ordering**: Place orders from supplier product catalogs
 
-### 6. Sales Reports & Analytics
+### 7. Supplier Order Management
+- View incoming orders from businesses
+- Update order status (Pending, Confirmed, Preparing, Shipped, Delivered, Cancelled)
+- Track order details and delivery information
+- Monitor order fulfillment progress
+
+### 8. Sales Reports & Analytics (Business Side)
 - Daily, weekly, monthly sales reports
 - Best-selling products
 - Inventory valuation
 - Profit/Loss analysis
+
+### 9. Supplier Analytics & Reports
+- Total sales tracking
+- Order status summaries
+- Active product counts
+- Pending order monitoring
+- Business performance metrics
 
 ## 🤖 AI-Powered Restocking Engine
 
@@ -199,14 +247,27 @@ orderQuantity = max(0, suggestedQuantity - currentStock)
 
 The system uses SQLite with the following main entities:
 
+### Business Side:
 - **Business** - Store business information
-- **User** - System users with roles
+- **User** - System users with roles (Business or Supplier account type)
 - **Product** - Inventory items
 - **SalesTransaction** - Sales records
 - **SalesTransactionItem** - Individual items in transactions
-- **PurchaseOrder** - Supplier orders
+- **PurchaseOrder** - Supplier orders (can link to registered suppliers)
 - **PurchaseOrderItem** - Items in purchase orders
 - **RestockingRecord** - Stock replenishment history
+
+### Supplier Side:
+- **Supplier** - Supplier company information and contact details
+- **SupplierProduct** - Wholesale products in supplier catalogs
+- **SupplierOrder** - Orders from businesses to suppliers
+- **SupplierOrderItem** - Items in supplier orders
+
+### Relationships:
+- Users can belong to either a Business or a Supplier
+- PurchaseOrders can optionally link to registered Suppliers
+- SupplierOrders connect Suppliers with Businesses
+- SupplierOrderItems reference SupplierProducts
 
 ## 🔐 Security Features
 
@@ -219,30 +280,54 @@ The system uses SQLite with the following main entities:
 ## 📊 Sample Data
 
 The console demo automatically creates sample data including:
+
+### Business Side:
 - A demo retail business
 - An admin user (username: `admin`, password: `admin123`)
-- Sample products (Nasi Lemak, Mineral Water, White Bread, Instant Noodles)
+- Sample products (Nasi Lemak, Mineral Water, White Bread, Instant Noodles, etc.)
 - Sample sales transactions
+
+### Supplier Side:
+- A demo supplier (Global Wholesale Distributors)
+- A supplier admin user (username: `supplier_admin`, password: `supplier123`)
+- Sample wholesale products with bulk pricing
+- Sample supplier orders from businesses
 
 ## 🎨 User Interface
 
 ### Login Screen
 - Simple username/password authentication
 - Link to registration for new businesses
+- Link to registration for new suppliers
+- Automatic routing based on account type
 
-### Registration Screen
+### Business Registration Screen
 - Business information collection
 - Owner details
 - Admin user creation
 
-### Main Dashboard
+### Supplier Registration Screen
+- Company information collection
+- Contact person details
+- Admin user creation
+- Business description
+
+### Business Owner Dashboard (Main Form)
 - Tabbed interface with:
   - Point of Sale
   - Product Management
   - Sales History
   - Restocking Management
-  - Purchase Orders
+  - Purchase Orders (with Browse Suppliers feature)
   - Business Reports (Admin/Manager only)
+
+### Supplier Dashboard
+- Tabbed interface with:
+  - Product Catalog Management
+  - Order Management (view and process orders)
+  - Sales Analytics and Reports
+- Features for updating order status
+- Inventory tracking for wholesale products
 
 ## 🧪 Testing
 
@@ -259,6 +344,11 @@ The demo will:
 4. Check for low stock products
 5. Generate restocking suggestions
 6. Display sales summary
+7. Create a sample supplier
+8. Add supplier products to catalog
+9. Browse available suppliers
+10. Place an order from supplier
+11. Display supplier dashboard summary
 
 ## 📝 Development Notes
 

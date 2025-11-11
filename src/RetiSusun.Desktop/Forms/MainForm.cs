@@ -2170,8 +2170,18 @@ public partial class MainForm : Form
             Font = new Font("Segoe UI", 10)
         };
         
+        var btnBrowseSuppliers = new Button
+        {
+            Text = "Browse Suppliers",
+            Location = new Point(580, 540),
+            Size = new Size(150, 35),
+            Font = new Font("Segoe UI", 10),
+            BackColor = Color.LightYellow
+        };
+        btnBrowseSuppliers.Click += (s, e) => ShowSupplierBrowseDialog(poListView, cboStatus);
+        
         panel.Controls.AddRange(new Control[] { 
-            btnCreatePO, btnViewPO, btnReceivePO, btnRefreshPO 
+            btnCreatePO, btnViewPO, btnReceivePO, btnRefreshPO, btnBrowseSuppliers 
         });
         
         // Load initial data
@@ -2263,6 +2273,259 @@ public partial class MainForm : Form
             MessageBox.Show($"Error loading purchase orders: {ex.Message}", "Error",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+    
+    private async void ShowSupplierBrowseDialog(ListView poListView, ComboBox cboStatus)
+    {
+        var form = new Form
+        {
+            Text = "Browse Suppliers",
+            Size = new Size(900, 600),
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.Sizable
+        };
+
+        var lblTitle = new Label
+        {
+            Text = "Select a Supplier to View Products",
+            Font = new Font("Segoe UI", 14, FontStyle.Bold),
+            Location = new Point(20, 20),
+            Size = new Size(850, 30)
+        };
+        form.Controls.Add(lblTitle);
+
+        // Suppliers ListView
+        var suppliersListView = new ListView
+        {
+            Location = new Point(20, 60),
+            Size = new Size(850, 200),
+            View = View.Details,
+            FullRowSelect = true,
+            GridLines = true,
+            MultiSelect = false
+        };
+        suppliersListView.Columns.Add("Supplier", 250);
+        suppliersListView.Columns.Add("Contact", 200);
+        suppliersListView.Columns.Add("Phone", 120);
+        suppliersListView.Columns.Add("Email", 200);
+        form.Controls.Add(suppliersListView);
+
+        // Products ListView
+        var productsListView = new ListView
+        {
+            Location = new Point(20, 280),
+            Size = new Size(850, 200),
+            View = View.Details,
+            FullRowSelect = true,
+            GridLines = true,
+            CheckBoxes = true
+        };
+        productsListView.Columns.Add("Product", 250);
+        productsListView.Columns.Add("Brand", 120);
+        productsListView.Columns.Add("Price", 100);
+        productsListView.Columns.Add("Min Order", 80);
+        productsListView.Columns.Add("Stock", 80);
+        productsListView.Columns.Add("Quantity", 100);
+        form.Controls.Add(productsListView);
+
+        // Order button
+        var btnPlaceOrder = new Button
+        {
+            Text = "Place Order",
+            Location = new Point(670, 490),
+            Size = new Size(200, 40),
+            Font = new Font("Segoe UI", 10, FontStyle.Bold),
+            BackColor = Color.LightGreen,
+            Enabled = false
+        };
+        form.Controls.Add(btnPlaceOrder);
+
+        // Load suppliers
+        try
+        {
+            using var scope = Program.ServiceProvider!.CreateScope();
+            var supplierService = scope.ServiceProvider.GetRequiredService<ISupplierService>();
+            var suppliers = await supplierService.GetOpenForBusinessSuppliersAsync();
+
+            foreach (var supplier in suppliers)
+            {
+                var item = new ListViewItem(supplier.CompanyName);
+                item.SubItems.Add(supplier.ContactPersonName ?? "");
+                item.SubItems.Add(supplier.ContactPersonPhone ?? "");
+                item.SubItems.Add(supplier.ContactPersonEmail ?? "");
+                item.Tag = supplier;
+                suppliersListView.Items.Add(item);
+            }
+
+            if (!suppliers.Any())
+            {
+                MessageBox.Show("No suppliers available at the moment.", "Info", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error loading suppliers: {ex.Message}", "Error", 
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
+        // Event: Supplier selected
+        suppliersListView.SelectedIndexChanged += async (s, e) =>
+        {
+            if (suppliersListView.SelectedItems.Count == 0) return;
+
+            var supplier = suppliersListView.SelectedItems[0].Tag as Supplier;
+            if (supplier == null) return;
+
+            productsListView.Items.Clear();
+            btnPlaceOrder.Enabled = false;
+
+            try
+            {
+                using var scope = Program.ServiceProvider!.CreateScope();
+                var productService = scope.ServiceProvider.GetRequiredService<ISupplierProductService>();
+                var products = await productService.GetActiveProductsBySupplierIdAsync(supplier.SupplierId);
+
+                foreach (var product in products)
+                {
+                    var item = new ListViewItem(product.Name);
+                    item.SubItems.Add(product.Brand ?? "");
+                    item.SubItems.Add($"RM{product.WholesalePrice:F2}");
+                    item.SubItems.Add(product.MinimumOrderQuantity.ToString());
+                    item.SubItems.Add(product.AvailableStock.ToString());
+                    item.SubItems.Add(product.MinimumOrderQuantity.ToString()); // Default quantity
+                    item.Tag = product;
+                    productsListView.Items.Add(item);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading products: {ex.Message}", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        };
+
+        // Event: Product checked
+        productsListView.ItemChecked += (s, e) =>
+        {
+            btnPlaceOrder.Enabled = productsListView.CheckedItems.Count > 0;
+        };
+
+        // Event: Edit quantity by double-clicking
+        productsListView.DoubleClick += (s, e) =>
+        {
+            if (productsListView.SelectedItems.Count == 0) return;
+            
+            var selectedItem = productsListView.SelectedItems[0];
+            var product = selectedItem.Tag as SupplierProduct;
+            if (product == null) return;
+
+            var quantityDialog = new Form
+            {
+                Text = "Set Quantity",
+                Size = new Size(300, 150),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+
+            var lblQty = new Label
+            {
+                Text = $"Quantity (Min: {product.MinimumOrderQuantity}):",
+                Location = new Point(20, 20),
+                Size = new Size(250, 25)
+            };
+
+            var numQty = new NumericUpDown
+            {
+                Location = new Point(20, 50),
+                Size = new Size(240, 25),
+                Minimum = product.MinimumOrderQuantity,
+                Maximum = 10000,
+                Value = int.Parse(selectedItem.SubItems[5].Text)
+            };
+
+            var btnOk = new Button
+            {
+                Text = "OK",
+                Location = new Point(100, 80),
+                Size = new Size(80, 30),
+                DialogResult = DialogResult.OK
+            };
+
+            quantityDialog.Controls.AddRange(new Control[] { lblQty, numQty, btnOk });
+            quantityDialog.AcceptButton = btnOk;
+
+            if (quantityDialog.ShowDialog() == DialogResult.OK)
+            {
+                selectedItem.SubItems[5].Text = numQty.Value.ToString();
+            }
+        };
+
+        // Event: Place order
+        btnPlaceOrder.Click += async (s, e) =>
+        {
+            if (suppliersListView.SelectedItems.Count == 0 || productsListView.CheckedItems.Count == 0)
+            {
+                MessageBox.Show("Please select a supplier and check at least one product.", "Validation", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var supplier = suppliersListView.SelectedItems[0].Tag as Supplier;
+            if (supplier == null) return;
+
+            try
+            {
+                using var scope = Program.ServiceProvider!.CreateScope();
+                var orderService = scope.ServiceProvider.GetRequiredService<ISupplierOrderService>();
+                var dbContext = scope.ServiceProvider.GetRequiredService<RetiSusunDbContext>();
+
+                var order = new SupplierOrder
+                {
+                    SupplierId = supplier.SupplierId,
+                    BusinessId = _currentUser.BusinessId!.Value,
+                    Status = "Pending",
+                    DeliveryAddress = (await dbContext.Businesses.FindAsync(_currentUser.BusinessId.Value))?.Address,
+                    Items = new List<SupplierOrderItem>()
+                };
+
+                foreach (ListViewItem item in productsListView.CheckedItems)
+                {
+                    var product = item.Tag as SupplierProduct;
+                    if (product == null) continue;
+
+                    var quantity = int.Parse(item.SubItems[5].Text);
+                    order.Items.Add(new SupplierOrderItem
+                    {
+                        SupplierProductId = product.SupplierProductId,
+                        Quantity = quantity,
+                        UnitPrice = product.WholesalePrice,
+                        TotalPrice = product.WholesalePrice * quantity
+                    });
+                }
+
+                order.TotalAmount = order.Items.Sum(i => i.TotalPrice);
+                await orderService.CreateOrderAsync(order);
+
+                MessageBox.Show($"Order placed successfully!\nOrder Number: {order.OrderNumber}\nTotal: RM{order.TotalAmount:F2}", 
+                    "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                form.DialogResult = DialogResult.OK;
+                form.Close();
+
+                // Refresh purchase orders
+                LoadPurchaseOrders(poListView, cboStatus.SelectedItem?.ToString() == "All" ? null : cboStatus.SelectedItem?.ToString());
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error placing order: {ex.Message}", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        };
+
+        form.ShowDialog();
     }
     
     private void ShowCreatePurchaseOrderDialog(ListView poListView, ComboBox cboStatus)

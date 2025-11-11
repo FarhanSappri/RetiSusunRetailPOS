@@ -27,6 +27,10 @@ public class User
     [MaxLength(50)]
     public string Role { get; set; } = "Cashier"; // Admin, Manager, Cashier
 
+    [Required]
+    [MaxLength(50)]
+    public string AccountType { get; set; } = "Business"; // Business, Supplier
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -37,6 +41,10 @@ public class User
     public int? BusinessId { get; set; }
     [ForeignKey(nameof(BusinessId))]
     public Business? Business { get; set; }
+
+    public int? SupplierId { get; set; }
+    [ForeignKey(nameof(SupplierId))]
+    public Supplier? Supplier { get; set; }
 
     public ICollection<SalesTransaction> SalesTransactions { get; set; } = new List<SalesTransaction>();
 }

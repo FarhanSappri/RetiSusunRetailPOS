@@ -18,6 +18,10 @@ public class RetiSusunDbContext : DbContext
     public DbSet<PurchaseOrder> PurchaseOrders { get; set; }
     public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; }
     public DbSet<RestockingRecord> RestockingRecords { get; set; }
+    public DbSet<Supplier> Suppliers { get; set; }
+    public DbSet<SupplierProduct> SupplierProducts { get; set; }
+    public DbSet<SupplierOrder> SupplierOrders { get; set; }
+    public DbSet<SupplierOrderItem> SupplierOrderItems { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -42,6 +46,16 @@ public class RetiSusunDbContext : DbContext
             .HasIndex(po => po.OrderNumber)
             .IsUnique();
 
+        modelBuilder.Entity<SupplierOrder>()
+            .HasIndex(so => so.OrderNumber)
+            .IsUnique();
+
+        modelBuilder.Entity<SupplierProduct>()
+            .HasIndex(sp => sp.Barcode);
+
+        modelBuilder.Entity<SupplierProduct>()
+            .HasIndex(sp => sp.SKU);
+
         // Configure decimal precision
         modelBuilder.Entity<Product>()
             .Property(p => p.CostPrice)
@@ -60,6 +74,11 @@ public class RetiSusunDbContext : DbContext
         modelBuilder.Entity<PurchaseOrder>()
             .HasMany(po => po.Items)
             .WithOne(poi => poi.PurchaseOrder)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<SupplierOrder>()
+            .HasMany(so => so.Items)
+            .WithOne(soi => soi.SupplierOrder)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

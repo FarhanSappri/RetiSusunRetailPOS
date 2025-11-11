@@ -48,6 +48,9 @@ class Program
         services.AddScoped<ISalesService, SalesService>();
         services.AddScoped<IRestockingService, RestockingService>();
         services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+        services.AddScoped<ISupplierService, SupplierService>();
+        services.AddScoped<ISupplierProductService, SupplierProductService>();
+        services.AddScoped<ISupplierOrderService, SupplierOrderService>();
     }
 
     private static async Task RunDemoAsync()
@@ -57,6 +60,9 @@ class Program
         var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
         var salesService = scope.ServiceProvider.GetRequiredService<ISalesService>();
         var restockingService = scope.ServiceProvider.GetRequiredService<IRestockingService>();
+        var supplierService = scope.ServiceProvider.GetRequiredService<ISupplierService>();
+        var supplierProductService = scope.ServiceProvider.GetRequiredService<ISupplierProductService>();
+        var supplierOrderService = scope.ServiceProvider.GetRequiredService<ISupplierOrderService>();
         var dbContext = scope.ServiceProvider.GetRequiredService<RetiSusunDbContext>();
 
         Console.WriteLine("1. Creating Business and Admin User...");
@@ -381,5 +387,213 @@ class Program
         Console.WriteLine($"Total Sales: RM{totalSales:F2}");
         Console.WriteLine($"Total Transactions: {transactions.Count()}");
         Console.WriteLine($"Average Transaction: RM{(transactions.Any() ? totalSales / transactions.Count() : 0):F2}");
+
+        Console.WriteLine("\n7. Creating Sample Supplier...");
+        Console.WriteLine("───────────────────────────────────────────────────────────");
+
+        var existingSupplier = await dbContext.Suppliers.FirstOrDefaultAsync();
+        Supplier supplier;
+
+        if (existingSupplier == null)
+        {
+            supplier = new Supplier
+            {
+                CompanyName = "Global Wholesale Distributors",
+                Address = "456 Industrial Park, Kota Kinabalu, Sabah",
+                Phone = "088-789012",
+                Email = "sales@globalwholesale.com",
+                RegistrationNumber = "GWD-2024-001",
+                ContactPersonName = "Sarah Lee",
+                ContactPersonEmail = "sarah@globalwholesale.com",
+                ContactPersonPhone = "019-8765432",
+                Description = "Leading wholesale distributor for retail goods in Sabah",
+                IsActive = true,
+                IsOpenForBusiness = true
+            };
+            supplier = await supplierService.CreateSupplierAsync(supplier);
+            Console.WriteLine($"✓ Supplier created: {supplier.CompanyName}");
+
+            // Create supplier admin user
+            var supplierAdmin = await authService.RegisterSupplierUserAsync(
+                "supplier_admin",
+                "supplier123",
+                "Sarah Lee",
+                "sarah@globalwholesale.com",
+                "Admin",
+                supplier.SupplierId
+            );
+            Console.WriteLine($"✓ Supplier admin user created: {supplierAdmin.Username}");
+        }
+        else
+        {
+            supplier = existingSupplier;
+            Console.WriteLine($"✓ Using existing supplier: {supplier.CompanyName}");
+        }
+
+        Console.WriteLine("\n8. Adding Supplier Products to Catalog...");
+        Console.WriteLine("───────────────────────────────────────────────────────────");
+
+        var existingSupplierProducts = await supplierProductService.GetProductsBySupplierIdAsync(supplier.SupplierId);
+        if (!existingSupplierProducts.Any())
+        {
+            var supplierProducts = new[]
+            {
+                new SupplierProduct
+                {
+                    Name = "Bulk Mineral Water 1.5L (24-Pack)",
+                    Description = "Carton of 24 bottles of mineral water",
+                    Brand = "Spritzer",
+                    Barcode = "SUP-8888002",
+                    SKU = "SUP-BEV-001",
+                    WholesalePrice = 25.00m,
+                    MinimumOrderQuantity = 10,
+                    AvailableStock = 500,
+                    Category = "Beverages",
+                    Unit = "carton",
+                    SupplierId = supplier.SupplierId
+                },
+                new SupplierProduct
+                {
+                    Name = "Instant Noodles Curry (30-Pack)",
+                    Description = "Wholesale pack of 30 Maggi curry noodles",
+                    Brand = "Maggi",
+                    Barcode = "SUP-8888004",
+                    SKU = "SUP-FOOD-001",
+                    WholesalePrice = 20.00m,
+                    MinimumOrderQuantity = 5,
+                    AvailableStock = 1000,
+                    Category = "Food",
+                    Unit = "carton",
+                    SupplierId = supplier.SupplierId
+                },
+                new SupplierProduct
+                {
+                    Name = "Milo Powder 1kg (12-Pack)",
+                    Description = "Bulk pack of Milo chocolate malt drink",
+                    Brand = "Nestle",
+                    Barcode = "SUP-8888005",
+                    SKU = "SUP-BEV-002",
+                    WholesalePrice = 140.00m,
+                    MinimumOrderQuantity = 5,
+                    AvailableStock = 200,
+                    Category = "Beverages",
+                    Unit = "carton",
+                    SupplierId = supplier.SupplierId
+                },
+                new SupplierProduct
+                {
+                    Name = "Dove Soap 100g (48-Pack)",
+                    Description = "Wholesale carton of beauty soap bars",
+                    Brand = "Unilever",
+                    Barcode = "SUP-8888007",
+                    SKU = "SUP-CARE-001",
+                    WholesalePrice = 120.00m,
+                    MinimumOrderQuantity = 3,
+                    AvailableStock = 150,
+                    Category = "Personal Care",
+                    Unit = "carton",
+                    SupplierId = supplier.SupplierId
+                },
+                new SupplierProduct
+                {
+                    Name = "Pringles Original 107g (12-Pack)",
+                    Description = "Carton of 12 Pringles potato crisps",
+                    Brand = "Pringles",
+                    Barcode = "SUP-8888008",
+                    SKU = "SUP-SNACK-001",
+                    WholesalePrice = 45.00m,
+                    MinimumOrderQuantity = 5,
+                    AvailableStock = 300,
+                    Category = "Snacks",
+                    Unit = "carton",
+                    SupplierId = supplier.SupplierId
+                }
+            };
+
+            foreach (var product in supplierProducts)
+            {
+                await supplierProductService.CreateProductAsync(product);
+                Console.WriteLine($"✓ Added: {product.Name} - Wholesale: RM{product.WholesalePrice} | Stock: {product.AvailableStock}");
+            }
+        }
+        else
+        {
+            Console.WriteLine($"✓ Using {existingSupplierProducts.Count()} existing supplier products");
+        }
+
+        Console.WriteLine("\n9. Browsing Available Suppliers...");
+        Console.WriteLine("───────────────────────────────────────────────────────────");
+
+        var availableSuppliers = await supplierService.GetOpenForBusinessSuppliersAsync();
+        Console.WriteLine($"✓ Found {availableSuppliers.Count()} suppliers open for business:");
+        foreach (var sup in availableSuppliers)
+        {
+            Console.WriteLine($"  • {sup.CompanyName}");
+            Console.WriteLine($"    Contact: {sup.ContactPersonName} ({sup.ContactPersonEmail})");
+            var productCount = await supplierProductService.GetActiveProductsBySupplierIdAsync(sup.SupplierId);
+            Console.WriteLine($"    Available Products: {productCount.Count()}");
+        }
+
+        Console.WriteLine("\n10. Placing Order from Supplier...");
+        Console.WriteLine("───────────────────────────────────────────────────────────");
+
+        var supplierProductsList = (await supplierProductService.GetActiveProductsBySupplierIdAsync(supplier.SupplierId)).ToList();
+        if (supplierProductsList.Any())
+        {
+            var order = new SupplierOrder
+            {
+                SupplierId = supplier.SupplierId,
+                BusinessId = business.BusinessId,
+                Status = "Pending",
+                DeliveryAddress = business.Address,
+                Items = new List<SupplierOrderItem>
+                {
+                    new SupplierOrderItem
+                    {
+                        SupplierProductId = supplierProductsList[0].SupplierProductId,
+                        Quantity = 10,
+                        UnitPrice = supplierProductsList[0].WholesalePrice,
+                        TotalPrice = supplierProductsList[0].WholesalePrice * 10
+                    },
+                    new SupplierOrderItem
+                    {
+                        SupplierProductId = supplierProductsList[1].SupplierProductId,
+                        Quantity = 5,
+                        UnitPrice = supplierProductsList[1].WholesalePrice,
+                        TotalPrice = supplierProductsList[1].WholesalePrice * 5
+                    }
+                }
+            };
+
+            order.TotalAmount = order.Items.Sum(i => i.TotalPrice);
+            var savedOrder = await supplierOrderService.CreateOrderAsync(order);
+            
+            Console.WriteLine($"✓ Order created: {savedOrder.OrderNumber}");
+            Console.WriteLine($"  Status: {savedOrder.Status}");
+            Console.WriteLine($"  Total: RM{savedOrder.TotalAmount:F2}");
+            Console.WriteLine($"  Items: {savedOrder.Items.Count}");
+
+            foreach (var item in savedOrder.Items)
+            {
+                var product = await supplierProductService.GetProductByIdAsync(item.SupplierProductId);
+                Console.WriteLine($"    - {product!.Name}: {item.Quantity} x RM{item.UnitPrice} = RM{item.TotalPrice}");
+            }
+        }
+
+        Console.WriteLine("\n11. Supplier Dashboard Summary...");
+        Console.WriteLine("───────────────────────────────────────────────────────────");
+
+        var supplierOrders = await supplierOrderService.GetOrdersBySupplierIdAsync(supplier.SupplierId);
+        var supplierTotalSales = await supplierOrderService.GetTotalSalesBySupplierIdAsync(supplier.SupplierId);
+        var orderStatusSummary = await supplierOrderService.GetOrderStatusSummaryAsync(supplier.SupplierId);
+
+        Console.WriteLine($"Supplier: {supplier.CompanyName}");
+        Console.WriteLine($"Total Orders: {supplierOrders.Count()}");
+        Console.WriteLine($"Total Sales: RM{supplierTotalSales:F2}");
+        Console.WriteLine("Order Status Breakdown:");
+        foreach (var status in orderStatusSummary)
+        {
+            Console.WriteLine($"  {status.Key}: {status.Value}");
+        }
     }
 }
