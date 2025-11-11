@@ -57,6 +57,16 @@ public partial class SupplierDashboardForm : Form
             Text = $"Welcome, {_currentUser.FullName}"
         };
 
+        // Settings Button
+        var btnSettings = new Button
+        {
+            Text = "⚙ Settings",
+            Location = new Point(880, 20),
+            Size = new Size(100, 30),
+            Font = new Font("Segoe UI", 9)
+        };
+        btnSettings.Click += BtnSettings_Click;
+
         // Tab Control
         tabControl = new TabControl
         {
@@ -80,6 +90,7 @@ public partial class SupplierDashboardForm : Form
         tabControl.TabPages.Add(tabReports);
 
         this.Controls.Add(lblWelcome);
+        this.Controls.Add(btnSettings);
         this.Controls.Add(tabControl);
     }
 
@@ -354,7 +365,7 @@ public partial class SupplierDashboardForm : Form
 
     private void BtnAddProduct_Click(object? sender, EventArgs e)
     {
-        MessageBox.Show("Add product functionality - to be implemented with detailed form", "Coming Soon", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        ShowSupplierProductDialog(null);
     }
 
     private void BtnEditProduct_Click(object? sender, EventArgs e)
@@ -364,7 +375,204 @@ public partial class SupplierDashboardForm : Form
             MessageBox.Show("Please select a product to edit.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        MessageBox.Show("Edit product functionality - to be implemented with detailed form", "Coming Soon", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        
+        var productId = (int)dgvProducts.SelectedRows[0].Cells["SupplierProductId"].Value;
+        using var scope = Program.ServiceProvider!.CreateScope();
+        var productService = scope.ServiceProvider.GetRequiredService<ISupplierProductService>();
+        var product = productService.GetProductByIdAsync(productId).Result;
+        
+        if (product != null)
+        {
+            ShowSupplierProductDialog(product);
+        }
+    }
+    
+    private void ShowSupplierProductDialog(SupplierProduct? product)
+    {
+        var isEdit = product != null;
+        var form = new Form
+        {
+            Text = isEdit ? "Edit Product" : "Add New Product",
+            Size = new Size(500, 650),
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false
+        };
+        
+        var y = 20;
+        var labelWidth = 130;
+        var fieldWidth = 300;
+        
+        // Name
+        form.Controls.Add(new Label { Text = "Product Name:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var txtName = new TextBox { Location = new Point(160, y), Size = new Size(fieldWidth, 25), Text = product?.Name ?? "" };
+        form.Controls.Add(txtName);
+        y += 35;
+        
+        // Brand
+        form.Controls.Add(new Label { Text = "Brand:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var txtBrand = new TextBox { Location = new Point(160, y), Size = new Size(fieldWidth, 25), Text = product?.Brand ?? "" };
+        form.Controls.Add(txtBrand);
+        y += 35;
+        
+        // Description
+        form.Controls.Add(new Label { Text = "Description:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var txtDescription = new TextBox { Location = new Point(160, y), Size = new Size(fieldWidth, 50), Multiline = true, Text = product?.Description ?? "" };
+        form.Controls.Add(txtDescription);
+        y += 65;
+        
+        // Category
+        form.Controls.Add(new Label { Text = "Category:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var txtCategory = new TextBox { Location = new Point(160, y), Size = new Size(fieldWidth, 25), Text = product?.Category ?? "" };
+        form.Controls.Add(txtCategory);
+        y += 35;
+        
+        // Barcode
+        form.Controls.Add(new Label { Text = "Barcode:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var txtBarcode = new TextBox { Location = new Point(160, y), Size = new Size(fieldWidth, 25), Text = product?.Barcode ?? "" };
+        form.Controls.Add(txtBarcode);
+        y += 35;
+        
+        // SKU
+        form.Controls.Add(new Label { Text = "SKU:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var txtSKU = new TextBox { Location = new Point(160, y), Size = new Size(fieldWidth, 25), Text = product?.SKU ?? "" };
+        form.Controls.Add(txtSKU);
+        y += 35;
+        
+        // Product Image
+        form.Controls.Add(new Label { Text = "Product Image:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var txtImagePath = new TextBox { Location = new Point(160, y), Size = new Size(230, 25), Text = product?.ImagePath ?? "", ReadOnly = true };
+        form.Controls.Add(txtImagePath);
+        var btnBrowseImage = new Button { Text = "Browse...", Location = new Point(395, y), Size = new Size(65, 25) };
+        btnBrowseImage.Click += (s, e) =>
+        {
+            using var openFileDialog = new OpenFileDialog
+            {
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.gif;*.bmp|All Files|*.*",
+                Title = "Select Product Image"
+            };
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                txtImagePath.Text = openFileDialog.FileName;
+            }
+        };
+        form.Controls.Add(btnBrowseImage);
+        y += 35;
+        
+        // Wholesale Price
+        form.Controls.Add(new Label { Text = "Wholesale Price (RM):", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var nudWholesalePrice = new NumericUpDown { Location = new Point(160, y), Size = new Size(140, 25), DecimalPlaces = 2, Maximum = 100000, Value = product?.WholesalePrice ?? 0 };
+        form.Controls.Add(nudWholesalePrice);
+        y += 35;
+        
+        // Minimum Order Quantity
+        form.Controls.Add(new Label { Text = "Min Order Quantity:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var nudMinOrder = new NumericUpDown { Location = new Point(160, y), Size = new Size(140, 25), Minimum = 1, Maximum = 100000, Value = product?.MinimumOrderQuantity ?? 1 };
+        form.Controls.Add(nudMinOrder);
+        y += 35;
+        
+        // Available Stock
+        form.Controls.Add(new Label { Text = "Available Stock:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var nudStock = new NumericUpDown { Location = new Point(160, y), Size = new Size(140, 25), Maximum = 100000, Value = product?.AvailableStock ?? 0 };
+        form.Controls.Add(nudStock);
+        y += 35;
+        
+        // Unit
+        form.Controls.Add(new Label { Text = "Unit:", Location = new Point(20, y), Size = new Size(labelWidth, 20) });
+        var txtUnit = new TextBox { Location = new Point(160, y), Size = new Size(140, 25), Text = product?.Unit ?? "pcs" };
+        form.Controls.Add(txtUnit);
+        y += 35;
+        
+        // Active Status
+        var chkActive = new CheckBox { Text = "Active (available for ordering)", Location = new Point(160, y), Size = new Size(250, 25), Checked = product?.IsActive ?? true };
+        form.Controls.Add(chkActive);
+        y += 45;
+        
+        // Buttons
+        var btnSave = new Button
+        {
+            Text = isEdit ? "Update" : "Add",
+            Location = new Point(160, y),
+            Size = new Size(100, 35),
+            BackColor = Color.LightGreen
+        };
+        btnSave.Click += async (s, e) =>
+        {
+            if (string.IsNullOrWhiteSpace(txtName.Text))
+            {
+                MessageBox.Show("Product name is required!", "Validation Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            
+            if (nudWholesalePrice.Value <= 0)
+            {
+                MessageBox.Show("Wholesale price must be greater than zero!", "Validation Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            
+            try
+            {
+                var productData = new SupplierProduct
+                {
+                    SupplierProductId = product?.SupplierProductId ?? 0,
+                    Name = txtName.Text.Trim(),
+                    Brand = txtBrand.Text.Trim(),
+                    Description = txtDescription.Text.Trim(),
+                    Category = txtCategory.Text.Trim(),
+                    Barcode = txtBarcode.Text.Trim(),
+                    SKU = txtSKU.Text.Trim(),
+                    ImagePath = txtImagePath.Text,
+                    WholesalePrice = nudWholesalePrice.Value,
+                    MinimumOrderQuantity = (int)nudMinOrder.Value,
+                    AvailableStock = (int)nudStock.Value,
+                    Unit = txtUnit.Text.Trim(),
+                    SupplierId = _currentUser.SupplierId!.Value,
+                    IsActive = chkActive.Checked,
+                    LastUpdatedDate = DateTime.UtcNow
+                };
+                
+                using var scope = Program.ServiceProvider!.CreateScope();
+                var productService = scope.ServiceProvider.GetRequiredService<ISupplierProductService>();
+                
+                if (isEdit)
+                {
+                    productData.CreatedDate = product!.CreatedDate;
+                    await productService.UpdateProductAsync(productData);
+                    MessageBox.Show("Product updated successfully!", "Success", 
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    await productService.CreateProductAsync(productData);
+                    MessageBox.Show("Product added successfully!", "Success", 
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                
+                await LoadProducts();
+                form.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error saving product: {ex.Message}", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        };
+        
+        var btnCancel = new Button
+        {
+            Text = "Cancel",
+            Location = new Point(270, y),
+            Size = new Size(100, 35)
+        };
+        btnCancel.Click += (s, e) => form.Close();
+        
+        form.Controls.Add(btnSave);
+        form.Controls.Add(btnCancel);
+        
+        form.ShowDialog();
     }
 
     private async void BtnDeleteProduct_Click(object? sender, EventArgs e)
@@ -509,5 +717,22 @@ public partial class SupplierDashboardForm : Form
     private void BtnGenerateReport_Click(object? sender, EventArgs e)
     {
         MessageBox.Show("Detailed report generation - to be implemented", "Coming Soon", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+    
+    private void BtnSettings_Click(object? sender, EventArgs e)
+    {
+        var settingsForm = new UserSettingsForm(_currentUser);
+        if (settingsForm.ShowDialog() == DialogResult.OK)
+        {
+            // Update welcome label if name changed
+            lblWelcome.Text = $"Welcome, {_currentUser.FullName}";
+            
+            // Note: Dark mode will take effect on next restart
+            if (_currentUser.DarkModeEnabled)
+            {
+                MessageBox.Show("Dark mode will be applied when you restart the application.", 
+                    "Settings Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
     }
 }

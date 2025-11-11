@@ -31,6 +31,8 @@ public class User
     [MaxLength(50)]
     public string AccountType { get; set; } = "Business"; // Business, Supplier
 
+    public bool DarkModeEnabled { get; set; } = false;
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;

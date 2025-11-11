@@ -126,4 +126,87 @@ public class RestockingService : IRestockingService
         await AddRestockingRecordAsync(record);
         return true;
     }
+    
+    public async Task<List<SupplierRecommendation>> GetSupplierRecommendationsAsync(int businessId)
+    {
+        // Get restocking suggestions first
+        var suggestions = await GetRestockingSuggestionsAsync(businessId);
+        if (!suggestions.Any())
+            return new List<SupplierRecommendation>();
+        
+        var recommendations = new List<SupplierRecommendation>();
+        
+        // Get all active suppliers
+        var suppliers = await _context.Suppliers
+            .Where(s => s.IsActive && s.IsOpenForBusiness)
+            .ToListAsync();
+        
+        // Get all products that need restocking
+        var productIds = suggestions.Keys.ToList();
+        var products = await _context.Products
+            .Where(p => productIds.Contains(p.ProductId))
+            .ToDictionaryAsync(p => p.ProductId, p => p);
+        
+        // For each supplier, find matching products
+        foreach (var supplier in suppliers)
+        {
+            var supplierProducts = await _context.SupplierProducts
+                .Where(sp => sp.SupplierId == supplier.SupplierId && sp.IsActive)
+                .ToListAsync();
+            
+            var matchingProducts = new List<ProductMatch>();
+            decimal estimatedCost = 0;
+            
+            foreach (var suggestion in suggestions)
+            {
+                if (!products.ContainsKey(suggestion.Key))
+                    continue;
+                
+                var product = products[suggestion.Key];
+                
+                // Try to find matching supplier product by name or SKU
+                var supplierProduct = supplierProducts.FirstOrDefault(sp =>
+                    sp.Name.Equals(product.Name, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(product.SKU) && !string.IsNullOrEmpty(sp.SKU) &&
+                     sp.SKU.Equals(product.SKU, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(product.Barcode) && !string.IsNullOrEmpty(sp.Barcode) &&
+                     sp.Barcode.Equals(product.Barcode, StringComparison.OrdinalIgnoreCase)));
+                
+                if (supplierProduct != null)
+                {
+                    matchingProducts.Add(new ProductMatch
+                    {
+                        ProductId = product.ProductId,
+                        ProductName = product.Name,
+                        SupplierProductId = supplierProduct.SupplierProductId,
+                        SuggestedQuantity = suggestion.Value,
+                        UnitPrice = supplierProduct.WholesalePrice
+                    });
+                    
+                    estimatedCost += supplierProduct.WholesalePrice * suggestion.Value;
+                }
+            }
+            
+            if (matchingProducts.Any())
+            {
+                recommendations.Add(new SupplierRecommendation
+                {
+                    SupplierId = supplier.SupplierId,
+                    SupplierName = supplier.CompanyName,
+                    LogoPath = supplier.LogoPath,
+                    ProductsNeeded = matchingProducts.Count,
+                    TotalProductsNeeded = suggestions.Count,
+                    CoveragePercentage = (decimal)matchingProducts.Count / suggestions.Count * 100,
+                    EstimatedCost = estimatedCost,
+                    MatchingProducts = matchingProducts
+                });
+            }
+        }
+        
+        // Sort by coverage percentage (highest first) and then by estimated cost (lowest first)
+        return recommendations
+            .OrderByDescending(r => r.CoveragePercentage)
+            .ThenBy(r => r.EstimatedCost)
+            .ToList();
+    }
 }

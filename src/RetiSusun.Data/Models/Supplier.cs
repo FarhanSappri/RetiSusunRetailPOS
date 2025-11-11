@@ -35,6 +35,9 @@ public class Supplier
     [MaxLength(500)]
     public string? Description { get; set; }
 
+    [MaxLength(500)]
+    public string? LogoPath { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public bool IsOpenForBusiness { get; set; } = true;

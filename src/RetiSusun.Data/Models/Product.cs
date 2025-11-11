@@ -45,6 +45,9 @@ public class Product
     [MaxLength(50)]
     public string? Unit { get; set; } = "pcs";
 
+    [MaxLength(500)]
+    public string? ImagePath { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
