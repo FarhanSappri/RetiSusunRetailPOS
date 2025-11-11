@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using RetiSusun.Data;
+using RetiSusun.Desktop.Helpers;
 
 namespace RetiSusun.Desktop.Forms;
 
@@ -36,6 +37,13 @@ public partial class MainForm : Form
         _currentUser = user;
         InitializeComponent();
         lblWelcome.Text = $"Welcome, {_currentUser.FullName} ({_currentUser.Role})";
+        
+        // Apply dark mode if enabled
+        if (_currentUser.DarkModeEnabled)
+        {
+            DarkModeHelper.ApplyDarkMode(this, true);
+        }
+        
         LoadProductsAsync();
     }
     
@@ -55,6 +63,7 @@ public partial class MainForm : Form
         this.Size = new Size(1200, 800);
         this.StartPosition = FormStartPosition.CenterScreen;
         this.WindowState = FormWindowState.Maximized;
+        this.MinimumSize = new Size(1000, 700);
 
         // Welcome Label
         lblWelcome = new Label
@@ -62,9 +71,23 @@ public partial class MainForm : Form
             Text = "Welcome",
             Font = new Font("Segoe UI", 12, FontStyle.Bold),
             Location = new Point(20, 10),
-            Size = new Size(500, 30)
+            Size = new Size(500, 30),
+            Anchor = AnchorStyles.Top | AnchorStyles.Left
         };
         this.Controls.Add(lblWelcome);
+
+        // Logout Button
+        var btnLogout = new Button
+        {
+            Text = "🚪 Logout",
+            Location = new Point(this.ClientSize.Width - 220, 10),
+            Size = new Size(100, 30),
+            Font = new Font("Segoe UI", 9),
+            BackColor = Color.LightCoral,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
+        };
+        btnLogout.Click += BtnLogout_Click;
+        this.Controls.Add(btnLogout);
 
         // Settings Button
         var btnSettings = new Button
@@ -72,7 +95,8 @@ public partial class MainForm : Form
             Text = "⚙ Settings",
             Location = new Point(this.ClientSize.Width - 110, 10),
             Size = new Size(100, 30),
-            Font = new Font("Segoe UI", 9)
+            Font = new Font("Segoe UI", 9),
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
         };
         btnSettings.Click += BtnSettings_Click;
         this.Controls.Add(btnSettings);
@@ -81,7 +105,8 @@ public partial class MainForm : Form
         tabControl = new TabControl
         {
             Location = new Point(10, 50),
-            Size = new Size(this.ClientSize.Width - 20, this.ClientSize.Height - 60)
+            Size = new Size(this.ClientSize.Width - 20, this.ClientSize.Height - 60),
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
         };
 
         // POS Tab
@@ -130,10 +155,6 @@ public partial class MainForm : Form
         }
 
         this.Controls.Add(tabControl);
-        this.Resize += (s, e) =>
-        {
-            tabControl.Size = new Size(this.ClientSize.Width - 20, this.ClientSize.Height - 60);
-        };
     }
 
     private Panel CreatePOSPanel()
@@ -2562,8 +2583,10 @@ public partial class MainForm : Form
             {
                 using var scope = Program.ServiceProvider!.CreateScope();
                 var orderService = scope.ServiceProvider.GetRequiredService<ISupplierOrderService>();
+                var poService = scope.ServiceProvider.GetRequiredService<IPurchaseOrderService>();
                 var dbContext = scope.ServiceProvider.GetRequiredService<RetiSusunDbContext>();
 
+                // Create SupplierOrder (for supplier side)
                 var order = new SupplierOrder
                 {
                     SupplierId = supplier.SupplierId,
@@ -2589,9 +2612,61 @@ public partial class MainForm : Form
                 }
 
                 order.TotalAmount = order.Items.Sum(i => i.TotalPrice);
-                await orderService.CreateOrderAsync(order);
+                var createdOrder = await orderService.CreateOrderAsync(order);
 
-                MessageBox.Show($"Order placed successfully!\nOrder Number: {order.OrderNumber}\nTotal: RM{order.TotalAmount:F2}", 
+                // Also create PurchaseOrder (for business side) linked to this supplier
+                var purchaseOrder = new PurchaseOrder
+                {
+                    BusinessId = _currentUser.BusinessId!.Value,
+                    SupplierId = supplier.SupplierId,
+                    SupplierName = supplier.CompanyName,
+                    SupplierEmail = supplier.ContactPersonEmail,
+                    SupplierPhone = supplier.ContactPersonPhone,
+                    Status = "Ordered",
+                    ExpectedDeliveryDate = DateTime.UtcNow.AddDays(7),
+                    CreatedByUserId = _currentUser.UserId,
+                    Notes = $"Order placed via supplier browsing. Supplier Order #: {createdOrder.OrderNumber}",
+                    Items = new List<PurchaseOrderItem>()
+                };
+
+                // Get supplier products with their details
+                var supplierProductService = scope.ServiceProvider.GetRequiredService<ISupplierProductService>();
+                var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
+                
+                foreach (ListViewItem item in productsListView.CheckedItems)
+                {
+                    var product = item.Tag as SupplierProduct;
+                    if (product == null) continue;
+
+                    var quantity = int.Parse(item.SubItems[5].Text);
+                    
+                    // Try to find matching product in business inventory
+                    var businessProducts = await productService.GetAllProductsAsync(_currentUser.BusinessId!.Value);
+                    var matchingProduct = businessProducts.FirstOrDefault(p => 
+                        p.Name.Equals(product.Name, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrEmpty(p.SKU) && !string.IsNullOrEmpty(product.SKU) && p.SKU == product.SKU));
+                    
+                    if (matchingProduct != null)
+                    {
+                        purchaseOrder.Items.Add(new PurchaseOrderItem
+                        {
+                            ProductId = matchingProduct.ProductId,
+                            QuantityOrdered = quantity,
+                            UnitCost = product.WholesalePrice,
+                            TotalCost = product.WholesalePrice * quantity
+                        });
+                    }
+                }
+
+                purchaseOrder.TotalAmount = purchaseOrder.Items.Sum(i => i.TotalCost);
+                
+                // Only create purchase order if we have matching items
+                if (purchaseOrder.Items.Any())
+                {
+                    await poService.CreatePurchaseOrderAsync(purchaseOrder);
+                }
+
+                MessageBox.Show($"Order placed successfully!\nOrder Number: {createdOrder.OrderNumber}\nTotal: RM{createdOrder.TotalAmount:F2}", 
                     "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 form.DialogResult = DialogResult.OK;
@@ -3598,6 +3673,22 @@ public partial class MainForm : Form
                 MessageBox.Show("Dark mode will be applied when you restart the application.", 
                     "Settings Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
+        }
+    }
+    
+    private void BtnLogout_Click(object? sender, EventArgs e)
+    {
+        var result = MessageBox.Show(
+            "Are you sure you want to logout?",
+            "Confirm Logout",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        
+        if (result == DialogResult.Yes)
+        {
+            this.Close();
+            var loginForm = new LoginForm();
+            loginForm.Show();
         }
     }
     
